@@ -1,66 +1,53 @@
 from grin.lexing import to_tokens
 from grin.interpreter import GrinInterpreter, create_statement
 from grin.statements import LabeledStatement
+from typing import List
 
-def read_program() -> list[str]:
+def read_program() -> List[str]:
     """Read program lines until a '.' is encountered"""
     lines = []
     while True:
-        try:
-            line = input()
-            if not line.strip():  # Skip empty lines
-                continue
+        line = input().strip()
+        if line == '.':
             lines.append(line)
-            if line.strip() == '.':
-                break
-        except EOFError:
             break
+        if line:  # Only add non-empty lines
+            lines.append(line)
     return lines
 
 def process_line(line: str, line_number: int, interpreter: GrinInterpreter) -> None:
     """Process a single line of the program"""
-    if line.strip() == '.':
+    if line == '.':
         return
 
-    # Get tokens for the line
-    tokens = list(to_tokens(line_number, line))
-    if not tokens:  # Skip empty lines
-        return
-
-    # Check for label
-    label = None
-    token_start = 0
+    tokens = list(to_tokens(line, line_number))  # Changed this line
     
-    if len(tokens) >= 2 and tokens[1].text() == ':':
-        label = tokens[0].text()
-        token_start = 2
+    # Handle labeled statements
+    label = None
+    if len(tokens) >= 2 and tokens[1].kind == 'COLON':
+        label = tokens[0].text
+        tokens = tokens[2:]  # Remove label and colon from tokens
+    
+    if tokens:  # Only create statement if there are tokens left
+        statement = create_statement(tokens)
+        labeled_statement = LabeledStatement(label, statement)
+        interpreter.add_statement(labeled_statement)
 
-    # Get the remaining tokens for the statement
-    statement_tokens = tokens[token_start:]
-    if statement_tokens:  # Only process if there are tokens
-        try:
-            statement = create_statement(statement_tokens)
-            labeled_stmt = LabeledStatement(label, statement)
-            interpreter.add_statement(labeled_stmt)
-        except Exception as e:
-            print(f"Error on line {line_number}: {str(e)}")
-            raise
-
-def execute_program(lines: list[str]) -> None:
+def execute_program(lines: List[str]) -> None:
     """Execute the GRIN program"""
     interpreter = GrinInterpreter()
     
+    for line_number, line in enumerate(lines, start=1):
+        try:
+            process_line(line, line_number, interpreter)
+        except Exception as e:
+            print(f"Error on line {line_number}: {str(e)}")
+            return
+
     try:
-        # Process each line
-        for line_number, line in enumerate(lines, 1):
-            if line.strip():  # Skip empty lines
-                process_line(line, line_number, interpreter)
-        
-        # Run the program
         interpreter.run()
     except Exception as e:
-        print(f"Error: {str(e)}")
-        raise
+        print(f"Runtime error: {str(e)}")
 
 def main() -> None:
     """Main entry point for the GRIN interpreter"""
@@ -71,7 +58,7 @@ def main() -> None:
     except KeyboardInterrupt:
         print("\nProgram terminated by user.")
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Unexpected error: {str(e)}")
 
 if __name__ == '__main__':
     main()

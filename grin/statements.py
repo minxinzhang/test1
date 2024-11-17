@@ -103,12 +103,43 @@ class ArithmeticStatement(Statement):
         return None
 
 class GotoStatement(Statement):
-    """Jumps to a label"""
-    def __init__(self, target: GrinToken):
+    """Jumps to a label or line number, optionally with a condition"""
+    def __init__(self, target: GrinToken, condition: Optional[str] = None, left: Optional[GrinToken] = None, right: Optional[GrinToken] = None):
         self.target = target
+        self.condition = condition
+        self.left = left
+        self.right = right
 
-    def execute(self, variables: Dict[str, Any]) -> str:
-        return self.target.text()
+    def execute(self, variables: Dict[str, Any]) -> Optional[str]:
+        if self.condition:
+            left_value = variables[self.left.text()] if self.left.kind() == GrinTokenKind.IDENTIFIER else self.left.value()
+            right_value = variables[self.right.text()] if self.right.kind() == GrinTokenKind.IDENTIFIER else self.right.value()
+            
+            if self.condition == '<' and left_value < right_value:
+                return self._get_target(variables)
+            elif self.condition == '>' and left_value > right_value:
+                return self._get_target(variables)
+            elif self.condition == '=' and left_value == right_value:
+                return self._get_target(variables)
+            else:
+                return None
+        else:
+            return self._get_target(variables)
+
+    def _get_target(self, variables: Dict[str, Any]) -> str:
+        if self.target.kind() == GrinTokenKind.IDENTIFIER:
+            if self.target.text() not in variables:
+                raise RuntimeError(f"Variable '{self.target.text()}' not defined")
+            target = variables[self.target.text()]
+        else:
+            target = self.target.value()
+
+        if isinstance(target, int):
+            return str(target)
+        elif isinstance(target, str):
+            return target
+        else:
+            raise RuntimeError(f"Invalid GOTO target: {target}")
 
 class GosubStatement(Statement):
     """Calls a subroutine"""

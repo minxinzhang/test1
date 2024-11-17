@@ -37,9 +37,15 @@ class GrinInterpreter:
             self.return_stack.append(self.current_line + 1)
             self.current_line = self.label_map[label]
         else:  # GOTO
-            if result not in self.label_map:
-                raise RuntimeError(f"Label '{result}' not found")
-            self.current_line = self.label_map[result]
+            try:
+                target = int(result)
+                if target <= 0 or target > len(self.statements) + 1:
+                    raise RuntimeError(f"Invalid GOTO target: {target}")
+                self.current_line = target - 1  # Adjust for 0-based index
+            except ValueError:
+                if result not in self.label_map:
+                    raise RuntimeError(f"Label '{result}' not found")
+                self.current_line = self.label_map[result]
 
     def run(self) -> None:
         """Execute the program"""
@@ -56,6 +62,7 @@ class GrinInterpreter:
             except Exception as e:
                 print(f"Error at line {self.current_line + 1}: {str(e)}")
                 break
+
 
 def create_statement(tokens: List[GrinToken]) -> Statement:
     """Create appropriate statement object based on tokens"""
@@ -74,7 +81,7 @@ def create_statement(tokens: List[GrinToken]) -> Statement:
         "SUB": (lambda t: ArithmeticStatement("SUB", t[1], t[2]), 3),
         "MULT": (lambda t: ArithmeticStatement("MULT", t[1], t[2]), 3),
         "DIV": (lambda t: ArithmeticStatement("DIV", t[1], t[2]), 3),
-        "GOTO": (GotoStatement, 2),
+        "GOTO": (GotoStatement, [2, 6]),  # GOTO can have 1 or 5 arguments (including IF)
         "GOSUB": (GosubStatement, 2),
         "RETURN": (ReturnStatement, 1),
         "END": (EndStatement, 1),
@@ -84,10 +91,21 @@ def create_statement(tokens: List[GrinToken]) -> Statement:
         raise ValueError(f"Unknown command: {command}")
 
     statement_type, required_tokens = STATEMENT_TYPES[command]
-    if len(tokens) != required_tokens:
+    
+    if isinstance(required_tokens, list):
+        if len(tokens) not in required_tokens:
+            raise ValueError(f"{command} requires {required_tokens[0]-1} or {required_tokens[1]-1} arguments")
+    elif len(tokens) != required_tokens:
         raise ValueError(f"{command} requires {required_tokens-1} arguments")
 
-    if isinstance(statement_type, type):  # If it's a class
+    if command == "GOTO":
+        if len(tokens) == 2:
+            return GotoStatement(tokens[1])
+        elif len(tokens) == 6 and tokens[2].text() == "IF":
+            return GotoStatement(tokens[1], tokens[4].text(), tokens[3], tokens[5])
+        else:
+            raise ValueError(f"Invalid GOTO statement: {' '.join(t.text() for t in tokens)}")
+    elif isinstance(statement_type, type):  # If it's a class
         if required_tokens == 1:
             return statement_type()
         elif required_tokens == 2:
