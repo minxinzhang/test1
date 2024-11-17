@@ -1,7 +1,4 @@
-# project3.py
-
 from grin.lexing import to_tokens
-from grin.parsing import parse
 from grin.interpreter import GrinInterpreter, create_statement
 from grin.statements import LabeledStatement
 
@@ -11,45 +8,59 @@ def read_program() -> list[str]:
     while True:
         try:
             line = input()
+            if not line.strip():  # Skip empty lines
+                continue
+            lines.append(line)
             if line.strip() == '.':
                 break
-            lines.append(line)
         except EOFError:
             break
     return lines
 
 def process_line(line: str, line_number: int, interpreter: GrinInterpreter) -> None:
     """Process a single line of the program"""
+    if line.strip() == '.':
+        return
+
+    # Get tokens for the line
     tokens = list(to_tokens(line_number, line))
-    
-    # Handle labeled statements
+    if not tokens:  # Skip empty lines
+        return
+
+    # Check for label
     label = None
-    start_idx = 0
+    token_start = 0
     
-    if len(tokens) >= 3 and tokens[1].text() == ":":
+    if len(tokens) >= 2 and tokens[1].text() == ':':
         label = tokens[0].text()
-        start_idx = 2
-    
-    command_tokens = tokens[start_idx:]
-    statement = create_statement(command_tokens)
-    labeled_statement = LabeledStatement(label, statement)
-    interpreter.add_statement(labeled_statement)
+        token_start = 2
+
+    # Get the remaining tokens for the statement
+    statement_tokens = tokens[token_start:]
+    if statement_tokens:  # Only process if there are tokens
+        try:
+            statement = create_statement(statement_tokens)
+            labeled_stmt = LabeledStatement(label, statement)
+            interpreter.add_statement(labeled_stmt)
+        except Exception as e:
+            print(f"Error on line {line_number}: {str(e)}")
+            raise
 
 def execute_program(lines: list[str]) -> None:
     """Execute the GRIN program"""
+    interpreter = GrinInterpreter()
+    
     try:
-        interpreter = GrinInterpreter()
-        
-        # Parse and add all statements
+        # Process each line
         for line_number, line in enumerate(lines, 1):
             if line.strip():  # Skip empty lines
                 process_line(line, line_number, interpreter)
         
-        # Execute the program
+        # Run the program
         interpreter.run()
-        
     except Exception as e:
         print(f"Error: {str(e)}")
+        raise
 
 def main() -> None:
     """Main entry point for the GRIN interpreter"""
