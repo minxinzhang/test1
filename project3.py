@@ -1,3 +1,5 @@
+# project3.py
+
 from grin.lexing import to_tokens
 from grin.parsing import parse
 from grin.interpreter import GrinInterpreter, create_statement
@@ -16,8 +18,11 @@ def read_program() -> list[str]:
             break
     return lines
 
-def process_tokens(tokens, interpreter):
-    """Process tokens and add statements to interpreter"""
+def process_line(line: str, line_number: int, interpreter: GrinInterpreter) -> None:
+    """Process a single line of the program"""
+    tokens = list(to_tokens(line_number, line))
+    
+    # Handle labeled statements
     label = None
     start_idx = 0
     
@@ -25,7 +30,8 @@ def process_tokens(tokens, interpreter):
         label = tokens[0].text()
         start_idx = 2
     
-    statement = create_statement(tokens[start_idx:])
+    command_tokens = tokens[start_idx:]
+    statement = create_statement(command_tokens)
     labeled_statement = LabeledStatement(label, statement)
     interpreter.add_statement(labeled_statement)
 
@@ -35,11 +41,9 @@ def execute_program(lines: list[str]) -> None:
         interpreter = GrinInterpreter()
         
         # Parse and add all statements
-        for line in lines:
-            if line.strip():
-                tokens_list = list(parse([line]))
-                for tokens in tokens_list:
-                    process_tokens(tokens, interpreter)
+        for line_number, line in enumerate(lines, 1):
+            if line.strip():  # Skip empty lines
+                process_line(line, line_number, interpreter)
         
         # Execute the program
         interpreter.run()

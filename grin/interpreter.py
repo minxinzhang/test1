@@ -87,11 +87,12 @@ def create_statement(tokens: List[GrinToken]) -> Statement:
     if len(tokens) != required_tokens:
         raise ValueError(f"{command} requires {required_tokens-1} arguments")
 
-    if callable(statement_type):
+    if isinstance(statement_type, type):  # If it's a class
+        if required_tokens == 1:
+            return statement_type()
+        elif required_tokens == 2:
+            return statement_type(tokens[1])
+        else:  # required_tokens == 3
+            return statement_type(tokens[1], tokens[2])
+    else:  # If it's a lambda function
         return statement_type(tokens)
-    elif required_tokens == 1:
-        return statement_type()
-    elif required_tokens == 2:
-        return statement_type(tokens[1])
-    else:
-        return statement_type(tokens[1], tokens[2])

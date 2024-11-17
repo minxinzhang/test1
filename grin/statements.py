@@ -1,20 +1,28 @@
-# grin/statements.py
-
-from grin.token import GrinToken, GrinTokenKind
 from typing import Optional, Dict, Any
+from grin.token import GrinToken, GrinTokenKind
 
 class Statement:
     """Base class for all GRIN statements"""
     def execute(self, variables: Dict[str, Any]) -> Optional[str]:
+        """
+        Execute the statement and return control flow instruction if any
+        Returns:
+            None: Continue to next statement
+            "END": End program
+            "RETURN": Return from subroutine
+            "label": Jump to label
+            "GOSUB:label": Call subroutine
+        """
         raise NotImplementedError()
 
 class LabeledStatement:
-    """Wrapper for statements that can have labels"""
+    """A statement that may have a label"""
     def __init__(self, label: Optional[str], statement: Statement):
         self.label = label
         self.statement = statement
 
 class LetStatement(Statement):
+    """Assigns a value to a variable"""
     def __init__(self, variable: GrinToken, value: GrinToken):
         self.variable = variable
         self.value = value
@@ -29,6 +37,7 @@ class LetStatement(Statement):
         return None
 
 class PrintStatement(Statement):
+    """Prints a value"""
     def __init__(self, value: GrinToken):
         self.value = value
 
@@ -42,6 +51,7 @@ class PrintStatement(Statement):
         return None
 
 class InNumStatement(Statement):
+    """Reads a number from input"""
     def __init__(self, variable: GrinToken):
         self.variable = variable
 
@@ -54,6 +64,7 @@ class InNumStatement(Statement):
             raise RuntimeError("Invalid numeric input")
 
 class InStrStatement(Statement):
+    """Reads a string from input"""
     def __init__(self, variable: GrinToken):
         self.variable = variable
 
@@ -62,6 +73,7 @@ class InStrStatement(Statement):
         return None
 
 class ArithmeticStatement(Statement):
+    """Performs arithmetic operations"""
     def __init__(self, operation: str, variable: GrinToken, value: GrinToken):
         self.operation = operation
         self.variable = variable
@@ -91,6 +103,7 @@ class ArithmeticStatement(Statement):
         return None
 
 class GotoStatement(Statement):
+    """Jumps to a label"""
     def __init__(self, target: GrinToken):
         self.target = target
 
@@ -98,6 +111,7 @@ class GotoStatement(Statement):
         return self.target.text()
 
 class GosubStatement(Statement):
+    """Calls a subroutine"""
     def __init__(self, target: GrinToken):
         self.target = target
 
@@ -105,9 +119,11 @@ class GosubStatement(Statement):
         return f"GOSUB:{self.target.text()}"
 
 class ReturnStatement(Statement):
+    """Returns from a subroutine"""
     def execute(self, variables: Dict[str, Any]) -> str:
         return "RETURN"
 
 class EndStatement(Statement):
+    """Ends the program"""
     def execute(self, variables: Dict[str, Any]) -> str:
         return "END"
