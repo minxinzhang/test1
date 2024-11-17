@@ -1,0 +1,2 @@
+class GrinRuntimeError(Exception):
+    pass
