@@ -1,23 +1,33 @@
-# project3.py
-
 from grin.lexing import to_tokens
 from grin.parsing import parse
 from grin.interpreter import GrinInterpreter, create_statement
 from grin.statements import LabeledStatement
-from grin.exceptions import GrinRuntimeError
 
 def read_program() -> list[str]:
     """Read program lines until a '.' is encountered"""
     lines = []
-    try:
-        while True:
+    while True:
+        try:
             line = input()
             if line.strip() == '.':
                 break
             lines.append(line)
-    except EOFError:
-        pass
+        except EOFError:
+            break
     return lines
+
+def process_tokens(tokens, interpreter):
+    """Process tokens and add statements to interpreter"""
+    label = None
+    start_idx = 0
+    
+    if len(tokens) >= 3 and tokens[1].text() == ":":
+        label = tokens[0].text()
+        start_idx = 2
+    
+    statement = create_statement(tokens[start_idx:])
+    labeled_statement = LabeledStatement(label, statement)
+    interpreter.add_statement(labeled_statement)
 
 def execute_program(lines: list[str]) -> None:
     """Execute the GRIN program"""
@@ -29,29 +39,16 @@ def execute_program(lines: list[str]) -> None:
             if line.strip():
                 tokens_list = list(parse([line]))
                 for tokens in tokens_list:
-                    # Check if first token is a label
-                    label = None
-                    start_idx = 0
-                    
-                    if len(tokens) >= 3 and tokens[1].text() == ":":
-                        label = tokens[0].text()
-                        start_idx = 2
-                    
-                    # Create and add statement
-                    statement = create_statement(tokens[start_idx:])
-                    labeled_statement = LabeledStatement(label, statement)
-                    interpreter.add_statement(labeled_statement)
+                    process_tokens(tokens, interpreter)
         
         # Execute the program
         interpreter.run()
         
-    except GrinRuntimeError as e:
-        print(f"Runtime Error: {str(e)}")
     except Exception as e:
         print(f"Error: {str(e)}")
 
 def main() -> None:
-    """Main entry point"""
+    """Main entry point for the GRIN interpreter"""
     try:
         program_lines = read_program()
         if program_lines:

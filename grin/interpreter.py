@@ -1,35 +1,48 @@
-# grin/interpreter.py
-
 from typing import Dict, Any, List, Optional
 from grin.token import GrinToken, GrinTokenKind
 from grin.statements import (
-    Statement, 
-    LabeledStatement,
-    LetStatement,
-    PrintStatement,
-    InNumStatement,
-    InStrStatement,
-    ArithmeticStatement,
-    GotoStatement,
-    GosubStatement,
-    ReturnStatement,
-    EndStatement
+    Statement, LabeledStatement, LetStatement, PrintStatement,
+    InNumStatement, InStrStatement, ArithmeticStatement,
+    GotoStatement, GosubStatement, ReturnStatement, EndStatement
 )
 
 class GrinInterpreter:
+    """GRIN language interpreter"""
+    
     def __init__(self):
         self.variables: Dict[str, Any] = {}
         self.statements: List[LabeledStatement] = []
         self.current_line = 0
-        self.return_stack = []
-        self.label_map = {}
+        self.return_stack: List[int] = []
+        self.label_map: Dict[str, int] = {}
 
     def add_statement(self, statement: LabeledStatement) -> None:
+        """Add a statement to the program and update label map if needed"""
         if statement.label:
             self.label_map[statement.label] = len(self.statements)
         self.statements.append(statement)
 
+    def handle_control_flow(self, result: str) -> None:
+        """Handle control flow instructions"""
+        if result == "END":
+            self.current_line = len(self.statements)  # Force program end
+        elif result == "RETURN":
+            if not self.return_stack:
+                raise RuntimeError("RETURN without GOSUB")
+            self.current_line = self.return_stack.pop()
+        elif result.startswith("GOSUB:"):
+            label = result[6:]
+            if label not in self.label_map:
+                raise RuntimeError(f"Label '{label}' not found")
+            self.return_stack.append(self.current_line + 1)
+            self.current_line = self.label_map[label]
+        else:  # GOTO
+            if result not in self.label_map:
+                raise RuntimeError(f"Label '{result}' not found")
+            self.current_line = self.label_map[result]
+
     def run(self) -> None:
+        """Execute the program"""
         self.current_line = 0
         while self.current_line < len(self.statements):
             try:
@@ -37,76 +50,48 @@ class GrinInterpreter:
                 
                 if result is None:
                     self.current_line += 1
-                elif result == "END":
-                    break
-                elif result == "RETURN":
-                    if not self.return_stack:
-                        raise RuntimeError("RETURN without GOSUB")
-                    self.current_line = self.return_stack.pop()
-                elif result.startswith("GOSUB:"):
-                    label = result[6:]
-                    if label not in self.label_map:
-                        raise RuntimeError(f"Label '{label}' not found")
-                    self.return_stack.append(self.current_line)
-                    self.current_line = self.label_map[label]
-                else:  # GOTO
-                    if result not in self.label_map:
-                        raise RuntimeError(f"Label '{result}' not found")
-                    self.current_line = self.label_map[result]
+                else:
+                    self.handle_control_flow(result)
+                    
             except Exception as e:
                 print(f"Error at line {self.current_line + 1}: {str(e)}")
                 break
 
 def create_statement(tokens: List[GrinToken]) -> Statement:
+    """Create appropriate statement object based on tokens"""
     if not tokens:
         raise ValueError("Empty token list")
 
     command = tokens[0].text()
     
-    if command == "LET":
-        if len(tokens) != 3:
-            raise ValueError("LET requires variable and value")
-        return LetStatement(tokens[1], tokens[2])
-    
-    elif command == "PRINT":
-        if len(tokens) != 2:
-            raise ValueError("PRINT requires one argument")
-        return PrintStatement(tokens[1])
-    
-    elif command == "INNUM":
-        if len(tokens) != 2:
-            raise ValueError("INNUM requires variable name")
-        return InNumStatement(tokens[1])
-    
-    elif command == "INSTR":
-        if len(tokens) != 2:
-            raise ValueError("INSTR requires variable name")
-        return InStrStatement(tokens[1])
-    
-    elif command in ["ADD", "SUB", "MULT", "DIV"]:
-        if len(tokens) != 3:
-            raise ValueError(f"{command} requires variable and value")
-        return ArithmeticStatement(command, tokens[1], tokens[2])
-    
-    elif command == "GOTO":
-        if len(tokens) != 2:
-            raise ValueError("GOTO requires label")
-        return GotoStatement(tokens[1])
-    
-    elif command == "GOSUB":
-        if len(tokens) != 2:
-            raise ValueError("GOSUB requires label")
-        return GosubStatement(tokens[1])
-    
-    elif command == "RETURN":
-        if len(tokens) != 1:
-            raise ValueError("RETURN takes no arguments")
-        return ReturnStatement()
-    
-    elif command == "END":
-        if len(tokens) != 1:
-            raise ValueError("END takes no arguments")
-        return EndStatement()
-    
-    else:
+    # Dictionary mapping commands to their corresponding statement classes and required argument counts
+    STATEMENT_TYPES = {
+        "LET": (LetStatement, 3),
+        "PRINT": (PrintStatement, 2),
+        "INNUM": (InNumStatement, 2),
+        "INSTR": (InStrStatement, 2),
+        "ADD": (lambda t: ArithmeticStatement("ADD", t[1], t[2]), 3),
+        "SUB": (lambda t: ArithmeticStatement("SUB", t[1], t[2]), 3),
+        "MULT": (lambda t: ArithmeticStatement("MULT", t[1], t[2]), 3),
+        "DIV": (lambda t: ArithmeticStatement("DIV", t[1], t[2]), 3),
+        "GOTO": (GotoStatement, 2),
+        "GOSUB": (GosubStatement, 2),
+        "RETURN": (ReturnStatement, 1),
+        "END": (EndStatement, 1),
+    }
+
+    if command not in STATEMENT_TYPES:
         raise ValueError(f"Unknown command: {command}")
+
+    statement_type, required_tokens = STATEMENT_TYPES[command]
+    if len(tokens) != required_tokens:
+        raise ValueError(f"{command} requires {required_tokens-1} arguments")
+
+    if callable(statement_type):
+        return statement_type(tokens)
+    elif required_tokens == 1:
+        return statement_type()
+    elif required_tokens == 2:
+        return statement_type(tokens[1])
+    else:
+        return statement_type(tokens[1], tokens[2])
